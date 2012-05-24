@@ -1,0 +1,137 @@
+#!/usr/bin/env ruby
+# 1.9 adds realpath to resolve symlinks; 1.8 doesn't
+# have this method, so we add it so we get resolved symlinks
+# and compatibility
+unless File.respond_to? :realpath
+  class File #:nodoc:
+    def self.realpath path
+      return realpath(File.readlink(path)) if symlink?(path)
+      path
+    end
+  end
+end
+$: << File.expand_path(File.dirname(File.realpath(__FILE__)) + '/../lib')
+require 'rubygems'
+require 'gli'
+require 'ms_utils_version'
+require 'ms_utils'
+#require 'fileutils'
+
+include GLI
+
+PID       = ENV['PID']
+ES_NAME   = ENV['ES_NAME']
+LOGIN     = ENV['LOGIN']
+PASSWORD  = ENV['PASSWORD']
+
+program_desc 'Ms Utils CLI - common ms tasks made easy'
+
+version MsUtils::VERSION
+
+desc 'Generate and optionally execute maql for synchronization of all datasets'
+arg_name 'Describe arguments to synchronize_datasets here'
+command :synchronize_datasets do |c|
+  c.desc 'Model directory'
+  c.flag [:d, :directory]
+  default_value "."
+  
+  c.desc 'If true synchronization of all found datasets will be executed, otherwise synchronization maql will be output to STDOUT'
+  c.switch [:e, :execute]
+  default_value false
+  
+  c.action do |global_options,options,args|
+    dir = options[:directory]
+    files = args
+    execute = options[:execute]
+    pid = options[:pid] || PID
+    password = options[:password] || PASSWORD
+    user = options[:user] || LOGIN
+    fail "You need to provide a project id. Use -i pid" if pid.nil? && execute
+    
+    file_names = files || Dir.glob("#{dir}/*.xml")
+    MsUtils::synchronize_datasets(file_names, :pid => pid, :execute => execute, :user => user, :password => password)
+  end  
+end
+
+desc 'Get date from date dimension id'
+arg_name 'Describe arguments to dim_to_date here'
+command :dim_to_date do |c|  
+  c.action do |global_options,options,args|
+    dim_id = args[0]
+    
+    fail "Please specify dimension id" if dim_id.nil?
+    MsUtils::dim_to_date(Integer(dim_id))
+  end 
+end
+
+desc 'Replace \\r line breaks with \\n in specified csv files'
+arg_name 'Describe arguments to fix_linebreaks here'
+command :fix_linebreaks do |c|  
+  c.desc 'Input directory'
+  c.flag [:d, :directory]
+  default_value nil
+  
+  c.action do |global_options,options,args|
+    dir = options[:directory]
+    files = args
+    
+    fail "One of input directory and files must be specified" if dir.nil? && files.nil?
+    
+    file_names = files || Dir.glob("#{dir}/*.csv")
+    
+    file_names.each do |file|
+      MsUtils::fix_line_breaks!(file)
+    end
+  end
+end
+
+desc 'Sets timestamps for all found *.csv files to given timestamp. Skipps rows with timestamp newer than given one.'
+arg_name 'Describe arguments to set_timestamps here'
+command :set_timestamps do |c|
+  c.desc 'Timestamp to be set'
+  c.flag [:t, :timestamp]
+  default_value nil
+  
+  c.desc 'Source directory. All *.csv files found there will be processed.'
+  c.flag [:s, :source_dir]
+  default_value '.'
+  
+  c.desc 'Target directory.'
+  c.flag [:o, :output_dir]
+  default_value nil
+  
+  c.action do |global_options,options,args|
+    source_dir = options[:source_dir]
+    output_dir = options[:output_dir]
+    timestamp  = options[:timestamp]
+    
+    fail "At least timestamp and target_dir has to be specified." if timestamp.nil? || output_dir.nil?
+    
+    MsUtils::set_timestamps(Integer(timestamp), source_dir, output_dir)
+  end  
+end
+
+pre do |global,command,options,args|
+  # Pre logic here
+  # Return true to proceed; false to abort and not call the
+  # chosen command
+  # Use skips_pre before a command to skip this block
+  # on that command only
+  true
+end
+
+post do |global,command,options,args|
+  # Post logic here
+  # Use skips_post before a command to skip this
+  # block on that command only
+end
+
+on_error do |exception|
+  pp exception.backtrace
+  # puts "error"
+  # Error logic here
+  # return false to skip default error handling
+  true
+end
+
+exit GLI.run(ARGV)

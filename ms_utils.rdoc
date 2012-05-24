@@ -1,0 +1,5 @@
+= ms_utils
+
+Generate this with
+    ms_utils rdoc
+After you have described your command line interface
