@@ -15,14 +15,15 @@ require 'rubygems'
 require 'gli'
 require 'ms_utils_version'
 require 'ms_utils'
-#require 'fileutils'
 
 include GLI
 
-PID       = ENV['PID']
-ES_NAME   = ENV['ES_NAME']
-LOGIN     = ENV['LOGIN']
-PASSWORD  = ENV['PASSWORD']
+PID             = ENV['PID']
+ES_NAME         = ENV['ES_NAME']
+GD_LOGIN        = ENV['LOGIN']
+GD_PASSWORD     = ENV['PASSWORD']
+SF_LOGIN        = ENV['SFDC_USERNAME']
+SF_PASSWORD     = ENV['SFDC_PASSWORD']
 
 program_desc 'Ms Utils CLI - common ms tasks made easy'
 
@@ -32,23 +33,22 @@ desc 'Generate and optionally execute maql for synchronization of all datasets'
 arg_name 'Describe arguments to synchronize_datasets here'
 command :synchronize_datasets do |c|
   c.desc 'Model directory'
-  c.flag [:d, :directory]
-  default_value "."
+  c.default_value '.'
+  c.flag [:m, :model_dir]
   
   c.desc 'If true synchronization of all found datasets will be executed, otherwise synchronization maql will be output to STDOUT'
+  c.default_value false
   c.switch [:e, :execute]
-  default_value false
   
   c.action do |global_options,options,args|
-    dir = options[:directory]
+    dir = options[:model_dir]
     files = args
     execute = options[:execute]
-    pid = options[:pid] || PID
-    password = options[:password] || PASSWORD
-    user = options[:user] || LOGIN
-    fail "You need to provide a project id. Use -i pid" if pid.nil? && execute
-    
-    file_names = files || Dir.glob("#{dir}/*.xml")
+    pid = PID
+    password = GD_PASSWORD
+    user = GD_LOGIN
+    fail "You need to provide a project id." if pid.nil? && execute
+    file_names = files.empty? ? Dir.glob("#{dir}/*.xml") : files
     MsUtils::synchronize_datasets(file_names, :pid => pid, :execute => execute, :user => user, :password => password)
   end  
 end
@@ -68,16 +68,16 @@ desc 'Replace \\r line breaks with \\n in specified csv files'
 arg_name 'Describe arguments to fix_linebreaks here'
 command :fix_linebreaks do |c|  
   c.desc 'Input directory'
+  c.default_value nil
   c.flag [:d, :directory]
-  default_value nil
   
   c.action do |global_options,options,args|
     dir = options[:directory]
     files = args
     
-    fail "One of input directory and files must be specified" if dir.nil? && files.nil?
+    fail "One of input directory and files must be specified" if dir.nil? && files.empty?
     
-    file_names = files || Dir.glob("#{dir}/*.csv")
+    file_names = files.empty? ? Dir.glob("#{dir}/*.csv") : files
     
     file_names.each do |file|
       MsUtils::fix_line_breaks!(file)
@@ -89,16 +89,16 @@ desc 'Sets timestamps for all found *.csv files to given timestamp. Skipps rows 
 arg_name 'Describe arguments to set_timestamps here'
 command :set_timestamps do |c|
   c.desc 'Timestamp to be set'
+  c.default_value nil
   c.flag [:t, :timestamp]
-  default_value nil
   
   c.desc 'Source directory. All *.csv files found there will be processed.'
+  c.default_value '.'
   c.flag [:s, :source_dir]
-  default_value '.'
   
   c.desc 'Target directory.'
+  c.default_value nil
   c.flag [:o, :output_dir]
-  default_value nil
   
   c.action do |global_options,options,args|
     source_dir = options[:source_dir]
@@ -108,6 +108,47 @@ command :set_timestamps do |c|
     fail "At least timestamp and target_dir has to be specified." if timestamp.nil? || output_dir.nil?
     
     MsUtils::set_timestamps(Integer(timestamp), source_dir, output_dir)
+  end  
+end
+
+desc 'Creates deleted records as content of ES minus content of SF. Do not load them.'
+arg_name 'Describe arguments to set_timestamps here'
+command :create_deleted do |c|
+  c.desc 'Directory to which files extracted from ES will be output'
+  c.default_value nil
+  c.flag [:e, :es_dir]
+  
+  
+  c.desc 'Directory to which files extracted from SF will be output'
+  c.default_value nil
+  c.flag [:s, :sf_dir]
+  
+  c.desc 'Directory containing base JSON files for ES.'
+  c.default_value nil
+  c.flag [:b, :base_dir]
+  
+  c.desc 'Path to descriptor file for SF downloader.'
+  c.default_value nil
+  c.flag [:d, :descriptor_file]
+  
+  c.desc 'Output dir for deleted files.'
+  c.default_value '.'
+  c.flag [:o, :output_dir]
+  
+  c.desc 'Timestamp to be set to deleted records.'
+  c.default_value nil
+  c.flag [:t, :timestamp]
+  
+  c.action do |global_options,options,args|
+  
+    options[:es_name] = ES_NAME
+    options[:pid] = PID
+    options[:gd_login] = GD_LOGIN
+    options[:gd_password] = GD_PASSWORD
+    options[:sf_login] = SF_LOGIN
+    options[:sf_password] = SF_PASSWORD
+    
+    MsUtils::create_deleted(options)
   end  
 end
 

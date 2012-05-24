@@ -26,4 +26,5 @@ lib/ms_utils.rb
   s.add_dependency('gooddata')
   s.add_dependency('rainbow')
   s.add_dependency('hpricot')
+  s.add_dependency('pry')
 end
