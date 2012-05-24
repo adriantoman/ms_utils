@@ -64,6 +64,17 @@ command :dim_to_date do |c|
   end 
 end
 
+desc 'Get date dimension id from date in yyyy-MM-dd format'
+arg_name 'Describe arguments to dim_to_date here'
+command :date_to_dim do |c|  
+  c.action do |global_options,options,args|
+    date = args[0]
+    
+    fail "Please specify date" if date.nil?
+    MsUtils::date_to_dim(date)
+  end 
+end
+
 desc 'Replace \\r line breaks with \\n in specified csv files'
 arg_name 'Describe arguments to fix_linebreaks here'
 command :fix_linebreaks do |c|  

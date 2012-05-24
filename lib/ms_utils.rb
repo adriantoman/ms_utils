@@ -1,7 +1,6 @@
 require "ms_utils_version"
 require 'hpricot'
 require 'pp'
-require 'pry'
 require 'builder'
 require 'gooddata'
 require 'logger'
@@ -9,6 +8,8 @@ require 'rainbow'
 require 'hpricot'
 require 'fastercsv'
 require 'es'
+require 'date'
+require 'pry'
 
 module MsUtils
     
@@ -53,6 +54,12 @@ module MsUtils
   def self.dim_to_date(dimension_id)
     timestamp = ((dimension_id - 25568) * 86400)
     puts Time.at(timestamp).utc.strftime("%F")
+  end
+
+  def self.date_to_dim(date)
+    date = Date.strptime(date, '%Y-%m-%d') unless date.class == Date
+    timestamp = Time.utc(date.year, date.month, date.day).to_i
+    puts (timestamp/86400 + 25568)
   end
 
   def self.fix_line_breaks!(file_name)
