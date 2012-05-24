@@ -27,4 +27,7 @@ lib/ms_utils.rb
   s.add_dependency('rainbow')
   s.add_dependency('hpricot')
   s.add_dependency('pry')
+  s.add_dependency('es')
+  s.add_dependency('fastercsv')
+  s.add_dependency('gooddata')
 end
