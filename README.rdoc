@@ -1,6 +1,11 @@
 = ms_utils
 
-Describe your project here
+== Installation
+  git clone git://github.com/Tereci/ms_utils.git
+  cd gd
+  rake gem
+  sudo gem install pkg/ms_utils-0.0.1.gem
+
 
 :include:ms_utils.rdoc
 
