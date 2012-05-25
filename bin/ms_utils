@@ -68,7 +68,7 @@ command :dim_to_date do |c|
     dim_id = args[0]
     
     fail "Please specify dimension id" if dim_id.nil?
-    MsUtils::dim_to_date(Integer(dim_id))
+    puts MsUtils::dim_to_date(Integer(dim_id))
   end 
 end
 
@@ -79,7 +79,40 @@ command :date_to_dim do |c|
     date = args[0]
     
     fail "Please specify date" if date.nil?
-    MsUtils::date_to_dim(date)
+    puts MsUtils::date_to_dim(date)
+  end 
+end
+
+desc 'Get timestamp from date dimension id'
+arg_name 'Describe arguments to dim_to_timestamp here'
+command :dim_to_timestamp do |c|  
+  c.action do |global_options,options,args|
+    dim_id = args[0]
+    
+    fail "Please specify dimension id" if dim_id.nil?
+    puts MsUtils::dim_to_timestamp(Integer(dim_id))
+  end 
+end
+
+desc 'Get dimension id from timestamp'
+arg_name 'Describe arguments to timestamp_to_dim here'
+command :timestamp_to_dim do |c|  
+  c.action do |global_options,options,args|
+    timestamp = args[0]
+    
+    fail "Please specify timestampd" if timestamp.nil?
+    puts MsUtils::timestamp_to_dim(Integer(timestamp))
+  end 
+end
+
+desc 'Get date from date dimension id'
+arg_name 'Describe arguments to dim_to_date here'
+command :dim_to_date do |c|  
+  c.action do |global_options,options,args|
+    dim_id = args[0]
+    
+    fail "Please specify dimension id" if dim_id.nil?
+    puts MsUtils::dim_to_date(Integer(dim_id))
   end 
 end
 
@@ -130,7 +163,7 @@ command :set_timestamps do |c|
   end  
 end
 
-desc 'Creates deleted records as content of ES minus content of SF. Do not load them.'
+desc 'Creates deleted records as content of ES minus content of SF. Does not load them.'
 arg_name 'Describe arguments to set_timestamps here'
 command :create_deleted do |c|
   c.desc 'Directory to which files extracted from ES will be output'
@@ -184,6 +217,31 @@ command :create_deleted do |c|
   c.action do |global_options,options,args|
     
     MsUtils::create_deleted(options)
+  end  
+end
+
+desc 'Reconstructs deleted records from snapshoted file. Does not load them.'
+arg_name 'Describe arguments to set_timestamps here'
+command :deleted_from_snapshoted do |c|
+
+  c.desc 'Input snapshoted file.'
+  c.default_value nil
+  c.flag [:i, :input]
+  
+  c.desc 'Output file with deleted records.'
+  c.default_value nil
+  c.flag [:o, :output]
+  
+  c.desc 'Name of column with id - default is id'
+  c.default_value nil
+  c.flag [:id]
+  
+  c.desc 'Name of column with snapshot date - default is snapshot'
+  c.default_value nil
+  c.flag [:snapshot]
+  
+  c.action do |global_options,options,args|
+    MsUtils::reconstruct_deleted(options)
   end  
 end
 

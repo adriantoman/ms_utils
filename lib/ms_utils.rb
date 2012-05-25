@@ -54,14 +54,22 @@ module MsUtils
   end
 
   def self.dim_to_date(dimension_id)
-    timestamp = ((dimension_id - 25568) * 86400)
-    puts Time.at(timestamp).utc.strftime("%F")
+    timestamp = dim_to_timestamp(dimension_id)
+    Time.at(timestamp).utc.strftime("%F")
   end
 
   def self.date_to_dim(date)
     date = Date.strptime(date, '%Y-%m-%d') unless date.class == Date
     timestamp = Time.utc(date.year, date.month, date.day).to_i
-    puts (timestamp/86400 + 25568)
+    timestamp_to_dim(timestamp)
+  end
+  
+  def self.dim_to_timestamp(dimension_id)
+    ((dimension_id - 25568) * 86400)
+  end
+  
+  def self.timestamp_to_dim(timestamp)
+    (timestamp/86400 + 25568)
   end
 
   def self.fix_line_breaks!(file_name)
@@ -106,7 +114,7 @@ module MsUtils
     sf_login        = options[:sf_login]
     sf_password     = options[:sf_password]
     
-    sync = MsUtils::Synchronizator.new()
+    sync = MsUtils::Synchronization.new()
 
     fail "You have to provide base_dir if you have no data in es_dir" if is_empty_dir?(es_dir) && base_dir.nil?
     fail "You have to provide path to descriptor_file if you have no data in sf_dir" if is_empty_dir?(sf_dir) && descriptor_file.nil?
@@ -141,7 +149,56 @@ module MsUtils
     files.size == 0
   end
   
-  class Synchronizator
+  def self.reconstruct_deleted(options)
+    mirgration = MsUtils::Migration.new()
+
+    mirgration.process_file(options[:input], options[:output], options[:id], options[:snapshot])
+  end
+  
+  class Migration
+  
+    def process_file(file, output_file, id_col, snapshot_col)
+      id_col = id_col ? id_col.to_sym : :id
+      snapshot_col = snapshot_col ? snapshot_col.to_sym : :snapshot
+      previous_array = []
+      actual_array = []
+      actual_snapshot = nil
+      FasterCSV.open(output_file, "w") do |csv|
+        csv << ["timestamp", "Id", "IsDeleted"]
+      end
+      FasterCSV.foreach( file, :headers           => true,
+                        :header_converters => :symbol,
+                        :return_headers    => true) do |line|
+        if line.header_row?
+          fail "Column #{snapshot_col} or #{id_col} doesn't exist in #{file}" unless line.header?(snapshot_col) && line.header?(id_col)
+        else  
+          actual_array << line[id_col] if actual_snapshot.eql?(line[snapshot_col]) 
+          if !actual_snapshot.eql?(line[snapshot_col]) 
+        
+            previous_array, actual_array = process_arrays(previous_array, actual_array, output_file, MsUtils::dim_to_timestamp(Integer(actual_snapshot))) 
+            actual_snapshot = line[snapshot_col]
+            actual_array << line[id_col]
+          end
+        end
+      end
+      process_arrays(previous_array, actual_array, output_file, MsUtils::dim_to_timestamp(Integer(actual_snapshot))) 
+    end
+    
+    def process_arrays(older_array, newer_array, output_file, timestamp)
+      if !older_array.empty? && !newer_array.empty? 
+        diff = older_array - newer_array
+        FasterCSV.open(output_file, "a") do |csv|
+          diff.each do |id|
+            csv << [timestamp.to_s, id, "true"]
+          end
+        end
+      end
+      return newer_array, []
+    end
+    
+  end
+  
+  class Synchronization
   
     def get_es_ids(options={})
       password      = options[:password]
@@ -282,6 +339,6 @@ module MsUtils
       
       return entity_list
     end
-  
   end
+  
 end
