@@ -40,16 +40,24 @@ command :synchronize_datasets do |c|
   c.default_value false
   c.switch [:e, :execute]
   
+  c.desc 'Login to gooddata'
+  c.default_value nil
+  c.flag [:l, :login]
+  
+  c.desc 'Password to goodddata'
+  c.default_value nil
+  c.flag [:p, :password]
+  
+  c.desc 'PID of a project'
+  c.default_value nil
+  c.flag :pid
+  
   c.action do |global_options,options,args|
     dir = options[:model_dir]
     files = args
-    execute = options[:execute]
-    pid = PID
-    password = GD_PASSWORD
-    user = GD_LOGIN
-    fail "You need to provide a project id." if pid.nil? && execute
+  
     file_names = files.empty? ? Dir.glob("#{dir}/*.xml") : files
-    MsUtils::synchronize_datasets(file_names, :pid => pid, :execute => execute, :user => user, :password => password)
+    MsUtils::synchronize_datasets(file_names, options)
   end  
 end
 
@@ -128,8 +136,7 @@ command :create_deleted do |c|
   c.desc 'Directory to which files extracted from ES will be output'
   c.default_value nil
   c.flag [:e, :es_dir]
-  
-  
+    
   c.desc 'Directory to which files extracted from SF will be output'
   c.default_value nil
   c.flag [:s, :sf_dir]
@@ -150,14 +157,31 @@ command :create_deleted do |c|
   c.default_value nil
   c.flag [:t, :timestamp]
   
-  c.action do |global_options,options,args|
+  c.desc 'Login to gooddata'
+  c.default_value nil
+  c.flag :gd_login
   
-    options[:es_name] = ES_NAME
-    options[:pid] = PID
-    options[:gd_login] = GD_LOGIN
-    options[:gd_password] = GD_PASSWORD
-    options[:sf_login] = SF_LOGIN
-    options[:sf_password] = SF_PASSWORD
+  c.desc 'Password to goodddata'
+  c.default_value nil
+  c.flag :gd_password
+  
+  c.desc 'PID of a project'
+  c.default_value nil
+  c.flag :pid
+  
+  c.desc 'Login to salesforce'
+  c.default_value nil
+  c.flag :sf_login
+  
+  c.desc 'Password and token to salesforce'
+  c.default_value nil
+  c.flag :sf_password
+  
+  c.desc 'Event store name'
+  c.default_value nil
+  c.flag :es_name
+  
+  c.action do |global_options,options,args|
     
     MsUtils::create_deleted(options)
   end  
