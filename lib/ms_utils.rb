@@ -253,7 +253,7 @@ module MsUtils
       client = Salesforce::Client.new(login, password)
       
       soql_list.each do |soql| 
-        next unless obejct_list.include?(soql[:soql].scan(/[Ff]rom\s(.*?)\s/).first.last)
+        next unless obejct_list.empty? || obejct_list.include?(soql[:soql].scan(/[Ff]rom\s(.*?)\s/).first.last)
         file_name = output_dir + soql[:file_name]
         FasterCSV.open(file_name.to_s, 'w') do |csv|
           csv << ["Id"]
