@@ -5,12 +5,12 @@ require 'builder'
 require 'gooddata'
 require 'logger'
 require 'rainbow'
-require 'hpricot'
 require 'fastercsv'
 require 'es'
 require 'date'
 require 'pry'
 require 'pathname'
+require 'salesforce'
 
 module MsUtils
     
@@ -263,7 +263,7 @@ module MsUtils
           query = "SELECT Id #{soql[:soql]}"
           puts query
           puts file_name
-          #binding.pry
+
           client.query(query, {:values => values, :output => csv})
         end  
       end
