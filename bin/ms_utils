@@ -214,6 +214,14 @@ command :create_deleted do |c|
   c.default_value nil
   c.flag :es_name
   
+  c.desc 'Download data from SF only for given object'
+  c.default_value nil
+  c.flag :object
+  
+  c.desc 'Extract data from ES only for given entity'
+  c.default_value nil
+  c.flag :entity
+  
   c.action do |global_options,options,args|
     
     MsUtils::create_deleted(options)

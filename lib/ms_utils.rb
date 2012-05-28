@@ -113,14 +113,16 @@ module MsUtils
     gd_password     = options[:gd_password]
     sf_login        = options[:sf_login]
     sf_password     = options[:sf_password]
+    entities        = options[:entity].nil? ? nil : [options[:entity]]
+    object_list     = options[:object].nil? ? nil : [options[:object]]
     
     sync = MsUtils::Synchronization.new()
 
     fail "You have to provide base_dir if you have no data in es_dir" if is_empty_dir?(es_dir) && base_dir.nil?
     fail "You have to provide path to descriptor_file if you have no data in sf_dir" if is_empty_dir?(sf_dir) && descriptor_file.nil?
 
-    sync.get_es_ids(:password => gd_password, :login => gd_login, :es_name => es_name, :base_dir => base_dir, :output_dir => es_dir, :pid => pid) if is_empty_dir?(es_dir)
-    sync.get_sf_ids(:password => sf_password, :login => sf_login, :output_dir => sf_dir, :descriptor => descriptor_file) if is_empty_dir?(sf_dir)
+    sync.get_es_ids(:password => gd_password, :login => gd_login, :es_name => es_name, :base_dir => base_dir, :output_dir => es_dir, :pid => pid, :entities => entities) if is_empty_dir?(es_dir)
+    sync.get_sf_ids(:password => sf_password, :login => sf_login, :output_dir => sf_dir, :descriptor => descriptor_file, :object_list => object_list) if is_empty_dir?(sf_dir)
 
     left_in_sf = []
     left_in_es = []
@@ -205,7 +207,7 @@ module MsUtils
       login         = options[:login]
       es_name       = options[:es_name]
       base_dir      = options[:base_dir]
-      entity_list   = options[:entity_list] || []
+      entities      = options[:entities] || []
       output_dir    = Pathname.new(options[:output_dir] || ".").expand_path
       
       pid           = options[:pid]
@@ -223,7 +225,7 @@ module MsUtils
       
       
       entity_list.each do |entity|
-        next unless entity_list.include?(entity.name)
+        next unless entities.empty? || entities.include?(entity.name)
         spec = {}
         spec[:entity] = entity.name
         spec[:file] = (output_dir + "#{entity.name}.csv").to_s
@@ -236,7 +238,7 @@ module MsUtils
         entity.timezone = timezone
         entity.fields << Es::SnapshotField.new("snapshot", "snapshot") unless output_deleted
         
-        gooddata_login(login, password)
+        MsUtils::gooddata_login(login, password)
         
         entity.extract(pid, es_name)       
       end    
@@ -253,7 +255,7 @@ module MsUtils
       client = Salesforce::Client.new(login, password)
       
       soql_list.each do |soql| 
-        next unless obejct_list.empty? || obejct_list.include?(soql[:soql].scan(/[Ff]rom\s(.*?)\s/).first.last)
+        next unless obejct_list.empty? || obejct_list.include?(soql[:soql].scan(/from\s(.*?)(?:\s|\z)/i).first.last)
         file_name = output_dir + soql[:file_name]
         FasterCSV.open(file_name.to_s, 'w') do |csv|
           csv << ["Id"]
@@ -274,7 +276,7 @@ module MsUtils
     # +desciptor_file+:: SFDC descriptor file to be parsed
     def get_SOQLs(descriptor_file)
       text = File.read(descriptor_file)
-      pattern = /.soql\(".*?([fF]rom.*?)(?i:\sand\sCreatedDate|\sand\sSystemModstamp|\swhere\sCreatedDate|\swhere\sSystemModstamp).*?\.file\("(.*?).csv"\)/m
+      pattern = /.soql\(".*?([fF]rom.*?)(?:\sand\sCreatedDate|\sand\sSystemModstamp|\swhere\sCreatedDate|\swhere\sSystemModstamp).*?\.file\("(.*?).csv"\)/mi
       matches = text.scan(pattern)
       (matches.map {|item| {:soql => (item.first).gsub(/\s+/, " "), :file_name => item.last + ".csv"}}).uniq!
     end  
