@@ -27,6 +27,8 @@ SF_PASSWORD     = ENV['SFDC_PASSWORD']
 
 program_desc 'Ms Utils CLI - common ms tasks made easy'
 
+GoodData.logger = Logger.new(STDOUT)
+
 version MsUtils::VERSION
 
 desc 'Generate and optionally execute maql for synchronization of all datasets'
@@ -252,6 +254,81 @@ command :deleted_from_snapshoted do |c|
     MsUtils::reconstruct_deleted(options)
   end  
 end
+
+
+desc 'Show all gooddata projects'
+arg_name 'Login arguments'
+command :gooddata_show_project do |c|
+
+  c.desc 'GoodData login'
+  c.default_value nil
+  c.flag [:l,:login]
+
+  c.desc 'GoodData password'
+  c.default_value nil
+  c.flag [:p,:password]
+
+  c.action do |global_options,options,args|
+      viewer = MsUtils::Viewer.new(options)
+      viewer.show_all_projects
+  end
+
+end
+
+desc 'Show all gooddata projects datasets'
+arg_name 'Login, Password and project pid'
+command :gooddata_show_datasets do |c|
+
+  c.desc 'GoodData login'
+  c.default_value nil
+  c.flag [:l,:login]
+
+  c.desc 'GoodData password'
+  c.default_value nil
+  c.flag [:p,:password]
+
+  c.desc 'PID of a project'
+  c.default_value nil
+  c.flag :pid
+
+  c.action do |global_options,options,args|
+    viewer = MsUtils::Viewer.new(options)
+    viewer.show_all_datasets(options[:pid])
+  end
+
+end
+
+desc 'Show all gooddata projects dataset attributes'
+arg_name 'Login, Password and project pid'
+command :gooddata_show_attributes do |c|
+
+  c.desc 'GoodData login'
+  c.default_value nil
+  c.flag [:l,:login]
+
+  c.desc 'GoodData password'
+  c.default_value nil
+  c.flag [:p,:password]
+
+  c.desc 'PID of a project'
+  c.default_value nil
+  c.flag :pid
+
+  c.desc 'Dataset indentifier'
+  c.default_value nil
+  c.flag :dataset
+
+  c.action do |global_options,options,args|
+    viewer = MsUtils::Viewer.new(options)
+    viewer.load_dataset_structure(options[:pid],options[:dataset])
+    #viewer.print_attributes
+    viewer.test_fact
+  end
+
+end
+
+
+
 
 pre do |global,command,options,args|
   # Pre logic here

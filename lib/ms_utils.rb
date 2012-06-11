@@ -342,5 +342,184 @@ module MsUtils
       return entity_list
     end
   end
-  
+
+
+  class Viewer
+
+    attr_reader :fact, :att, :dataset_json
+
+#    def colorize(text, color_code)
+#      "#{color_code}#{text}e[0m"
+#    end
+
+#    def red(text); colorize(text, "e[31m"); end
+#    def green(text); colorize(text, "e[32m"); end
+
+# Actual work
+ #   puts 'Importing categories [ ' + green('DONE') + ' ]'
+# Actual work
+  #  puts 'Importing tags       [' + red('FAILED') + ']'
+   def initialize(options)
+     MsUtils::gooddata_login(options[:login],options[:password])
+     @fact = Hash.new()
+     @att = Hash.new()
+   end
+
+
+    def show_all_projects
+       json = GoodData.get GoodData.profile.projects
+      puts "You have this project available:"
+      json["projects"].map do |project|
+        pid = project["project"]["links"]["roles"].to_s
+        puts "Project name: #{project["project"]["meta"]["title"]} Project PID: #{pid.match("[^\/]{32}").to_s}"
+      end
+    end
+
+
+    def show_all_datasets(pid)
+    GoodData.use pid
+    puts "Project has this datasets:"
+     GoodData.project.datasets.each do |dataset|
+       puts "Dataset name: #{dataset.title} Dataset identifier: #{dataset.identifier}"
+     end
+    end
+
+
+    def find_dataset(dataset)
+      GoodData.project.datasets.each do |d|
+        if d.identifier.to_s == "dataset.#{dataset}"
+          return d
+        end
+      end
+
+    end
+
+    def load_dataset_structure(pid,dataset)
+      GoodData.use pid
+      choosen_dataset = find_dataset(dataset)
+      @dataset = GoodData::MdObject.new((GoodData.get choosen_dataset.uri)['dataSet'])
+
+      #Load all atrribute info
+      @dataset.content['attributes'].map do |e|
+        att_id = e.match("[0-9]*$").to_s
+        @att[att_id] = Attribute.new((GoodData.get e)['attribute'])
+      end
+
+      #Load all fact info
+      @dataset.content['facts'].map do |e|
+        fact_id = e.match("[0-9]*$").to_s
+        @fact[fact_id] = Fact.new((GoodData.get e)['fact'])
+      end
+    end
+
+
+    def print_attributes
+      @att.each_value do |att|
+        puts att.to_s
+      end
+    end
+
+     def print_fact
+       @fact.each_value do |fact|
+         puts fact.to_s
+       end
+     end
+
+     def test
+       @att["3429"].load_fk
+       puts @att["3429"].move_to_maql(@dataset,find_dataset("send"))
+     end
+
+
+    def test_fact
+      @fact["3447"].load_expr
+      puts @fact["3447"].move_to_maql(@dataset,find_dataset("send"))
+    end
+
+
+  end
+
+
+  class Attribute < GoodData::MdObject
+
+    attr_reader :fk
+
+
+    def type
+      "attribute"
+    end
+
+    def to_s
+      "Attribute identifier: #{identifier} Attribute name: #{title}"
+    end
+
+    def load_fk
+      @fk = Hash.new()
+       content['fk'].map do |e|
+        fk_id = e['data'].match("[0-9]*$").to_s
+        @fk[fk_id] = GoodData.get e['data']
+       end
+
+      fail "Cannot choose right FK" if @fk.count > 1
+
+    end
+
+    def fk_identifier
+      @fk.values.first['column']['meta']['identifier']
+    end
+
+
+    #ALTER ATTRIBUTE {attr.transactions.dtccategory} DROP KEYS {f_transactions.dtccategory_id};
+    #ALTER ATTRIBUTE {attr.transactions.dtccategory} ADD KEYS {f_packages.dtccategory_id};
+    #ALTER DATASET {dataset.transactions} DROP {attr.transactions.dtccategory};
+    #ALTER DATASET {dataset.packages} ADD {attr.transactions.dtccategory};
+
+    def move_to_maql(s_dataset,t_dataset)
+      s_target_key = "f_#{t_dataset.identifier.split('.').last}.#{fk_identifier.split('.').last}"
+      "ALTER ATTRIBUTE {#{identifier}} DROP KEYS {#{fk_identifier}};\n" \
+      "ALTER ATTRIBUTE {#{identifier}} ADD KEYS {#{s_target_key}};\n" \
+      "ALTER DATASET {#{s_dataset.identifier}} DROP {#{identifier}};\n" \
+      "ALTER DATASET {#{t_dataset.identifier}} DROP {#{identifier}};\n"
+    end
+
+  end
+
+
+  class Fact < GoodData::MdObject
+    attr_reader :expr
+
+    def type
+       "fact"
+     end
+
+     def to_s
+       "Fact identifier: #{identifier} Fact name: #{title}"
+     end
+
+     def load_expr
+       @expr = Hash.new()
+       content['expr'].map do |e|
+         expr_id = e['data'].match("[0-9]*$").to_s
+         @expr[expr_id] = GoodData.get e['data']
+       end
+
+       fail "Cannot choose right EXPR" if @expr.count > 1
+
+     end
+
+     def expr_identifier
+       @expr.values.first['column']['meta']['identifier']
+     end
+
+
+     def move_to_maql(s_dataset,t_dataset)
+       s_target_key = "f_#{t_dataset.identifier.split('.').last}.#{expr_identifier.split('.').last}"
+       "ALTER ATTRIBUTE {#{identifier}} DROP {#{expr_identifier}};\n" \
+       "ALTER ATTRIBUTE {#{identifier}} ADD {#{s_target_key}};\n" \
+       "ALTER DATASET {#{s_dataset.identifier}} DROP {#{identifier}};\n" \
+       "ALTER DATASET {#{t_dataset.identifier}} ADD {#{identifier}};\n"
+     end
+
+  end
+
 end
