@@ -346,19 +346,8 @@ module MsUtils
 
   class Viewer
 
-    attr_reader :fact, :att, :dataset_json
+    attr_reader :fact, :att, :dataset_json, :dataset
 
-#    def colorize(text, color_code)
-#      "#{color_code}#{text}e[0m"
-#    end
-
-#    def red(text); colorize(text, "e[31m"); end
-#    def green(text); colorize(text, "e[32m"); end
-
-# Actual work
- #   puts 'Importing categories [ ' + green('DONE') + ' ]'
-# Actual work
-  #  puts 'Importing tags       [' + red('FAILED') + ']'
    def initialize(options)
      MsUtils::gooddata_login(options[:login],options[:password])
      @fact = Hash.new()
@@ -371,7 +360,7 @@ module MsUtils
       puts "You have this project available:"
       json["projects"].map do |project|
         pid = project["project"]["links"]["roles"].to_s
-        puts "Project name: #{project["project"]["meta"]["title"]} Project PID: #{pid.match("[^\/]{32}").to_s}"
+        puts "Project name: #{project["project"]["meta"]["title"].bright} Project PID: #{pid.match("[^\/]{32}").to_s.bright}"
       end
     end
 
@@ -380,7 +369,7 @@ module MsUtils
     GoodData.use pid
     puts "Project has this datasets:"
      GoodData.project.datasets.each do |dataset|
-       puts "Dataset name: #{dataset.title} Dataset identifier: #{dataset.identifier}"
+       puts "Dataset name: #{dataset.title.bright} Dataset identifier: #{dataset.identifier.bright}"
      end
     end
 
@@ -391,6 +380,7 @@ module MsUtils
           return d
         end
       end
+      fail "Cannot find dataset"
 
     end
 
@@ -424,10 +414,55 @@ module MsUtils
          puts fact.to_s
        end
      end
+     
+     def find_attribute(object)
+	@att.each_pair do |key,value|
+	  if value.identifier.split('.').last == object 
+	    return key
+	  end
+	end
+	return nil
+     end
+     
+     def find_fact
+       	@fact.each do |key,value|
+	  if value.identifier.split('.').last == object 
+	      return key
+	  end
+	end
+	return nil
+     end
 
+     def move_object(tdataset,identifier)
+	object_id = nil
+	object = nil
+	if (find_attribute(identifier).nil?)
+	  if (find_fact(identifier).nil?)
+	    fail "Cannot find object id (Most likily you provided wrong identifier)"
+	  else 
+	    object_id = find_fact(identifier)
+	    object = @fact[object_id]
+	  end
+	else
+	    object_id = find_attribute(identifier)
+	    object = @att[object_id]
+	end
+	
+	object.move(
+	    @dataset,
+	    GoodData::MdObject.new((GoodData.get find_dataset(tdataset).uri)['dataSet'])
+	)
+    
+     end
+     
+     
+     
      def test
-       @att["3429"].load_fk
-       puts @att["3429"].move_to_maql(@dataset,find_dataset("send"))
+       @att["31"].load_fk
+#        puts @att["3429"].move_to_maql(@dataset,find_dataset("send"))
+#        @att["31"].change_identifier("test")
+	@att["31"].load_labels
+	pp @att["31"].labels
      end
 
 
@@ -442,7 +477,7 @@ module MsUtils
 
   class Attribute < GoodData::MdObject
 
-    attr_reader :fk
+    attr_reader :fk, :labels
 
 
     def type
@@ -463,6 +498,15 @@ module MsUtils
       fail "Cannot choose right FK" if @fk.count > 1
 
     end
+    
+    
+    def load_labels
+      @labels = Hash.new()
+      content['displayForms'].map do |e|
+	label_id = e['meta']['uri'].match("[0-9]*$").to_s
+	@labels[label_id] = GoodData.get e['meta']['uri']
+      end
+    end
 
     def fk_identifier
       @fk.values.first['column']['meta']['identifier']
@@ -474,13 +518,35 @@ module MsUtils
     #ALTER DATASET {dataset.transactions} DROP {attr.transactions.dtccategory};
     #ALTER DATASET {dataset.packages} ADD {attr.transactions.dtccategory};
 
-    def move_to_maql(s_dataset,t_dataset)
+    def move(s_dataset,t_dataset)
+	puts s_dataset
+	puts t_dataset
+#       move_maql(s_dataset,t_dataset)
+#       change_identifier(t_dataset)
+#       change_label_identifiers(t_dataset)
+      
+      
+    end
+    
+    def move_maql(s_dataset,t_dataset)
       s_target_key = "f_#{t_dataset.identifier.split('.').last}.#{fk_identifier.split('.').last}"
       "ALTER ATTRIBUTE {#{identifier}} DROP KEYS {#{fk_identifier}};\n" \
       "ALTER ATTRIBUTE {#{identifier}} ADD KEYS {#{s_target_key}};\n" \
       "ALTER DATASET {#{s_dataset.identifier}} DROP {#{identifier}};\n" \
       "ALTER DATASET {#{t_dataset.identifier}} DROP {#{identifier}};\n"
     end
+    
+    def change_identifier(t_dataset)
+
+      identifier = "attr.#{t_dataset}.#{identifier.split('.').last}" 
+      pp @json
+#       GoodData.post(uri,{ 'attribute' => @json })
+ 
+    end
+    
+    def change_label_identifiers(t_dataset)
+      
+    end 
 
   end
 

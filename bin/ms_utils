@@ -321,12 +321,74 @@ command :gooddata_show_attributes do |c|
   c.action do |global_options,options,args|
     viewer = MsUtils::Viewer.new(options)
     viewer.load_dataset_structure(options[:pid],options[:dataset])
-    #viewer.print_attributes
-    viewer.test_fact
+    viewer.print_attributes
   end
 
 end
 
+desc 'Show all gooddata projects dataset facts'
+arg_name 'Login, Password and project pid'
+command :gooddata_show_facts do |c|
+
+  c.desc 'GoodData login'
+  c.default_value nil
+  c.flag [:l,:login]
+
+  c.desc 'GoodData password'
+  c.default_value nil
+  c.flag [:p,:password]
+
+  c.desc 'PID of a project'
+  c.default_value nil
+  c.flag :pid
+
+  c.desc 'Dataset indentifier'
+  c.default_value nil
+  c.flag :dataset
+
+  c.action do |global_options,options,args|
+    viewer = MsUtils::Viewer.new(options)
+    viewer.load_dataset_structure(options[:pid],options[:dataset])
+    viewer.print_facts
+  end
+
+end
+
+desc 'Move object to different dataset'
+arg_name 'Login, Password and project pid'
+command :gooddata_move_object do |c|
+
+  c.desc 'GoodData login'
+  c.default_value nil
+  c.flag [:l,:login]
+
+  c.desc 'GoodData password'
+  c.default_value nil
+  c.flag [:p,:password]
+
+  c.desc 'PID of a project'
+  c.default_value nil
+  c.flag :pid
+
+  c.desc 'Source dataset indentifier'
+  c.default_value nil
+  c.flag :sdataset
+  
+  c.desc 'Target dataset indentifier'
+  c.default_value nil
+  c.flag :tdataset
+  
+  c.desc 'Object identifier'
+  c.default_value nil
+  c.flag :object
+
+  c.action do |global_options,options,args|
+    viewer = MsUtils::Viewer.new(options)
+    viewer.load_dataset_structure(options[:pid],options[:sdataset])
+    viewer.move_object(options[:tdataset],options[:object])
+  end
+
+end
 
 
 
