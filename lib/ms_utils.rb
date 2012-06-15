@@ -346,7 +346,7 @@ module MsUtils
 
   class Viewer
 
-    attr_reader :fact, :att, :dataset_json, :dataset
+    attr_reader :fact, :att, :dataset_json, :dataset, :pid
 
    def initialize(options)
      MsUtils::gooddata_login(options[:login],options[:password])
@@ -385,7 +385,8 @@ module MsUtils
     end
 
     def load_dataset_structure(pid,dataset)
-      GoodData.use pid
+      @pid = pid
+      GoodData.use @pid
       choosen_dataset = find_dataset(dataset)
       @dataset = GoodData::MdObject.new((GoodData.get choosen_dataset.uri)['dataSet'])
 
@@ -424,7 +425,7 @@ module MsUtils
 	return nil
      end
      
-     def find_fact
+     def find_fact(object)
        	@fact.each do |key,value|
 	  if value.identifier.split('.').last == object 
 	      return key
@@ -450,7 +451,8 @@ module MsUtils
 	
 	object.move(
 	    @dataset,
-	    GoodData::MdObject.new((GoodData.get find_dataset(tdataset).uri)['dataSet'])
+	    GoodData::MdObject.new((GoodData.get find_dataset(tdataset).uri)['dataSet']),
+	    @pid
 	)
     
      end
@@ -477,7 +479,7 @@ module MsUtils
 
   class Attribute < GoodData::MdObject
 
-    attr_reader :fk, :labels
+    attr_reader :fk, :labels, :main_label
 
 
     def type
@@ -485,9 +487,13 @@ module MsUtils
     end
 
     def to_s
-      "Attribute identifier: #{identifier} Attribute name: #{title}"
+      "Attribute identifier: #{identifier.bright} Attribute name: #{title.bright}"
     end
 
+    def refresh
+	@json = (GoodData.get uri)['attribute']
+     end
+    
     def load_fk
       @fk = Hash.new()
        content['fk'].map do |e|
@@ -503,8 +509,12 @@ module MsUtils
     def load_labels
       @labels = Hash.new()
       content['displayForms'].map do |e|
-	label_id = e['meta']['uri'].match("[0-9]*$").to_s
-	@labels[label_id] = GoodData.get e['meta']['uri']
+	if (e['meta']['identifier'].split(".").count == 3)
+	  @main_label = GoodData.get e['meta']['uri']
+	else
+	  label_id = e['meta']['uri'].match("[0-9]*$").to_s
+	  @labels[label_id] = GoodData.get e['meta']['uri']
+	end
       end
     end
 
@@ -512,40 +522,45 @@ module MsUtils
       @fk.values.first['column']['meta']['identifier']
     end
 
-
-    #ALTER ATTRIBUTE {attr.transactions.dtccategory} DROP KEYS {f_transactions.dtccategory_id};
-    #ALTER ATTRIBUTE {attr.transactions.dtccategory} ADD KEYS {f_packages.dtccategory_id};
-    #ALTER DATASET {dataset.transactions} DROP {attr.transactions.dtccategory};
-    #ALTER DATASET {dataset.packages} ADD {attr.transactions.dtccategory};
-
-    def move(s_dataset,t_dataset)
-	puts s_dataset
-	puts t_dataset
-#       move_maql(s_dataset,t_dataset)
-#       change_identifier(t_dataset)
-#       change_label_identifiers(t_dataset)
-      
-      
+    def move(s_dataset,t_dataset,pid)
+       move_maql(s_dataset,t_dataset,pid)
+       change_identifier(t_dataset)
+       change_label_identifiers(s_dataset,t_dataset)
     end
     
-    def move_maql(s_dataset,t_dataset)
+    def move_maql(s_dataset,t_dataset,pid)
+      puts "Posting change maql to GoodData"
+      load_fk
       s_target_key = "f_#{t_dataset.identifier.split('.').last}.#{fk_identifier.split('.').last}"
-      "ALTER ATTRIBUTE {#{identifier}} DROP KEYS {#{fk_identifier}};\n" \
-      "ALTER ATTRIBUTE {#{identifier}} ADD KEYS {#{s_target_key}};\n" \
-      "ALTER DATASET {#{s_dataset.identifier}} DROP {#{identifier}};\n" \
-      "ALTER DATASET {#{t_dataset.identifier}} DROP {#{identifier}};\n"
+      maql = "ALTER ATTRIBUTE {#{identifier}} DROP KEYS {f_#{s_dataset.identifier.split('.').last}.#{fk_identifier.split(".").last}};" \
+      "ALTER ATTRIBUTE {#{identifier}} ADD KEYS {#{s_target_key}};" \
+      "ALTER DATASET {#{s_dataset.identifier}} DROP {#{identifier}};" \
+      "ALTER DATASET {#{t_dataset.identifier}} ADD {#{identifier}};"
+      GoodData.post("/gdc/md/#{pid}/ldm/manage", { 'manage' => { 'maql' => maql } })
+      
     end
     
     def change_identifier(t_dataset)
-
-      identifier = "attr.#{t_dataset}.#{identifier.split('.').last}" 
-      pp @json
-#       GoodData.post(uri,{ 'attribute' => @json })
- 
+      refresh
+      puts "Updating attribute #{identifier} identifier"
+      last = identifier.split('.').last
+      meta['identifier'] = "attr.#{t_dataset.identifier.split('.').last}.#{last}" 
+      GoodData.post(uri,{ 'attribute' => @json })
     end
     
-    def change_label_identifiers(t_dataset)
-      
+    def change_label_identifiers(s_dataset,t_dataset)
+      puts "Updating labels..."
+      load_labels
+      fail "Cannot find main label" if @main_label.nil?
+      puts "Updating label: #{@main_label['attributeDisplayForm']['meta']['identifier']}"
+      # First we need to update main label
+      @main_label['attributeDisplayForm']['meta']['identifier'].sub!(s_dataset.identifier.split('.').last,t_dataset.identifier.split('.').last)
+      GoodData.post(@main_label['attributeDisplayForm']['meta']['uri'],@main_label)
+      @labels.each_value do |l|
+	  puts "Updating label: #{l['attributeDisplayForm']['meta']['identifier']}"
+	  l['attributeDisplayForm']['meta']['identifier'].sub!(s_dataset.identifier.split('.').last,t_dataset.identifier.split('.').last)
+	  GoodData.post(l['attributeDisplayForm']['meta']['uri'],l)
+      end
     end 
 
   end
@@ -559,7 +574,11 @@ module MsUtils
      end
 
      def to_s
-       "Fact identifier: #{identifier} Fact name: #{title}"
+       "Fact identifier: #{identifier.bright} Fact name: #{title.bright}"
+     end
+     
+     def refresh
+	@json = (GoodData.get uri)['fact']
      end
 
      def load_expr
@@ -577,14 +596,30 @@ module MsUtils
        @expr.values.first['column']['meta']['identifier']
      end
 
-
-     def move_to_maql(s_dataset,t_dataset)
-       s_target_key = "f_#{t_dataset.identifier.split('.').last}.#{expr_identifier.split('.').last}"
-       "ALTER ATTRIBUTE {#{identifier}} DROP {#{expr_identifier}};\n" \
-       "ALTER ATTRIBUTE {#{identifier}} ADD {#{s_target_key}};\n" \
-       "ALTER DATASET {#{s_dataset.identifier}} DROP {#{identifier}};\n" \
-       "ALTER DATASET {#{t_dataset.identifier}} ADD {#{identifier}};\n"
+     def move(s_dataset,t_dataset,pid)
+       load_expr
+       move_to_maql(s_dataset,t_dataset,pid)
+       change_identifier(t_dataset)
      end
+
+     def move_to_maql(s_dataset,t_dataset,pid)
+       puts "Generating fact maql..."
+       s_target_key = "f_#{t_dataset.identifier.split('.').last}.#{expr_identifier.split('.').last}"
+       maql = "ALTER FACT {#{identifier}} DROP {f_#{s_dataset.identifier.split('.').last}.#{expr_identifier.split(".").last}};" \
+       "ALTER FACT {#{identifier}} ADD {#{s_target_key}};" \
+       "ALTER DATASET {#{s_dataset.identifier}} DROP {#{identifier}};" \
+       "ALTER DATASET {#{t_dataset.identifier}} ADD {#{identifier}};"
+        GoodData.post("/gdc/md/#{pid}/ldm/manage", { 'manage' => { 'maql' => maql } })
+     end
+     
+     
+     def change_identifier(t_dataset)
+      refresh
+      puts "Updating fact #{identifier} identifier"
+      last = identifier.split('.').last
+      meta['identifier'] = "fact.#{t_dataset.identifier.split('.').last}.#{last}" 
+      GoodData.post(uri,{ 'fact' => @json })
+    end
 
   end
 
