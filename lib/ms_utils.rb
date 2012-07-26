@@ -344,6 +344,10 @@ module MsUtils
   end
 
 
+  
+  
+ 
+  
   class Viewer
 
     attr_reader :fact, :att, :dataset_json, :dataset, :pid
@@ -354,7 +358,7 @@ module MsUtils
      @att = Hash.new()
    end
 
-
+    # Shows all user projects
     def show_all_projects
        json = GoodData.get GoodData.profile.projects
       puts "You have this project available:"
@@ -364,7 +368,8 @@ module MsUtils
       end
     end
 
-
+    #Show all dataset for specific project
+    # usage show_all_datasets(pid)
     def show_all_datasets(pid)
     GoodData.use pid
     puts "Project has this datasets:"
@@ -384,6 +389,11 @@ module MsUtils
 
     end
 
+    # Loads structer of specific dataset to program internal scructure  
+    # Usage load_dataset_structure(pid,dataset)
+    # Pid - project Id
+    # Dataset - dataset identifier
+    
     def load_dataset_structure(pid,dataset)
       @pid = pid
       GoodData.use @pid
@@ -434,6 +444,11 @@ module MsUtils
 	return nil
      end
 
+     # Move specific object from source dataset (set in method load_dataset_structure)
+     # load_dataset_structure must be run before this method
+     # tdataset - identifier of target dataset
+     # identifier - identifier of target object (fact or attribute)
+     
      def move_object(tdataset,identifier)
 	object_id = nil
 	object = nil
